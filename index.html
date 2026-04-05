@@ -1,0 +1,889 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Draft Assistant</title>
+<link href="https://fonts.googleapis.com/css2?family=Beaufort+for+LOL:wght@400;700&family=Spiegel:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --gold: #C8AA6E; --gold-dark: #785A28; --blue-dark: #010A13;
+    --blue-mid: #0A1428; --blue-accent: #0AC8B9; --blue-light: #CDFAFA;
+    --red: #E84057; --purple: #9B59B6; --orange: #F39C12; --green: #27AE60;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--blue-dark); color: var(--blue-light);
+    font-family: 'Spiegel', 'Segoe UI', sans-serif; min-height: 100vh;
+  }
+  .header {
+    background: linear-gradient(180deg, var(--blue-mid), var(--blue-dark));
+    border-bottom: 2px solid var(--gold-dark); padding: 20px 16px 12px; text-align: center;
+  }
+  .header h1 {
+    font-size: 22px; font-weight: 800; letter-spacing: 3px; text-transform: uppercase;
+    background: linear-gradient(135deg, var(--gold), #F0E6D2, var(--gold));
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  }
+  .header .sub { font-size: 11px; color: var(--gold); opacity: 0.5; letter-spacing: 1px; margin-top: 4px; }
+  .status-bar {
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    margin-top: 10px; font-size: 11px; padding: 4px 12px; border-radius: 20px;
+    display: inline-flex;
+  }
+  .status-bar.connected { background: #27AE6022; color: var(--green); border: 1px solid #27AE6044; }
+  .status-bar.offline { background: #E8405722; color: var(--red); border: 1px solid #E8405744; }
+  .status-bar.loading { background: #F39C1222; color: var(--orange); border: 1px solid #F39C1244; }
+  .status-dot { width: 6px; height: 6px; border-radius: 50%; }
+  .status-bar.connected .status-dot { background: var(--green); box-shadow: 0 0 6px var(--green); }
+  .status-bar.offline .status-dot { background: var(--red); }
+  .status-bar.loading .status-dot { background: var(--orange); animation: pulse 1s infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+  .tabs {
+    display: flex; margin-top: 12px; border-radius: 6px; overflow: hidden;
+    border: 1px solid var(--gold-dark);
+  }
+  .tabs button {
+    flex: 1; padding: 8px 0; font-size: 12px; font-weight: 700; letter-spacing: 1px;
+    border: none; cursor: pointer; transition: all 0.15s; font-family: inherit;
+  }
+  .tabs button.active { background: var(--gold); color: var(--blue-dark); }
+  .tabs button:not(.active) { background: transparent; color: #CDFAFA88; }
+
+  .container { padding: 16px; max-width: 600px; margin: 0 auto; }
+  .section { margin-top: 16px; }
+  .section-title {
+    font-size: 11px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase;
+    display: flex; align-items: center; gap: 8px; margin-bottom: 8px;
+  }
+  .section-title .line { flex: 1; height: 1px; }
+
+  .role-bar { display: flex; gap: 6px; }
+  .role-btn {
+    flex: 1; padding: 8px 4px; font-size: 12px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 1px; border-radius: 4px; cursor: pointer; transition: all 0.15s;
+    font-family: inherit; border: 1px solid var(--gold-dark); background: transparent; color: var(--gold);
+  }
+  .role-btn.active { background: var(--gold); color: var(--blue-dark); border-color: var(--gold); }
+
+  .pick-order { display: flex; gap: 8px; }
+  .pick-btn {
+    flex: 1; padding: 10px; font-size: 13px; font-weight: 600; border-radius: 6px;
+    cursor: pointer; transition: all 0.15s; font-family: inherit; border: 1px solid var(--gold-dark);
+    background: transparent; color: #CDFAFA88;
+  }
+  .pick-btn.active-blind { background: #E8405733; color: var(--red); border-color: var(--red); }
+  .pick-btn.active-counter { background: #0AC8B933; color: var(--blue-accent); border-color: var(--blue-accent); }
+
+  .chip {
+    display: inline-flex; align-items: center; gap: 6px; border-radius: 6px;
+    padding: 4px 10px; font-size: 13px; font-weight: 600;
+  }
+  .chip .remove {
+    background: none; border: none; cursor: pointer; font-size: 14px; padding: 0;
+    opacity: 0.7; line-height: 1;
+  }
+  .chip-wrap { display: flex; flex-wrap: wrap; gap: 6px; }
+
+  .search-wrap { position: relative; width: 100%; margin-top: 6px; }
+  .search-input {
+    width: 100%; padding: 8px 12px; font-size: 14px; background: var(--blue-mid);
+    border: 1px solid var(--gold-dark); border-radius: 6px; color: var(--blue-light);
+    outline: none; font-family: inherit;
+  }
+  .search-dropdown {
+    position: absolute; top: 100%; left: 0; right: 0; background: var(--blue-mid);
+    border: 1px solid var(--gold-dark); border-radius: 0 0 6px 6px; z-index: 100;
+    max-height: 200px; overflow-y: auto;
+  }
+  .search-item {
+    padding: 8px 12px; cursor: pointer; display: flex; align-items: center; gap: 8px;
+    font-size: 13px; color: var(--blue-light); border-bottom: 1px solid #785A2822;
+  }
+  .search-item:hover { background: #1a2a40; }
+  .search-item .meta { margin-left: auto; font-size: 11px; color: var(--gold); opacity: 0.6; }
+
+  .enemy-card {
+    background: #E840570A; border: 1px solid #E8405722; border-radius: 8px; padding: 8px 10px;
+  }
+  .enemy-card-header { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+  .enemy-role-bar { display: flex; gap: 3px; }
+  .enemy-role-btn {
+    flex: 1; padding: 3px 2px; font-size: 9px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.5px; border-radius: 3px; cursor: pointer; transition: all 0.1s;
+    font-family: inherit;
+  }
+  .enemy-role-btn.assigned { background: var(--red); color: #fff; border: 1px solid var(--red); }
+  .enemy-role-btn:not(.assigned) { background: transparent; color: #E8405788; border: 1px solid #E8405733; }
+
+  .analyze-btn {
+    width: 100%; padding: 14px; font-size: 15px; font-weight: 800; text-transform: uppercase;
+    letter-spacing: 2px; border: none; border-radius: 8px; cursor: pointer; margin-top: 8px;
+    font-family: inherit; transition: all 0.2s;
+  }
+  .analyze-btn.ready { background: linear-gradient(135deg, var(--gold-dark), var(--gold)); color: var(--blue-dark); }
+  .analyze-btn.disabled { background: #333; color: #666; cursor: not-allowed; }
+
+  .comp-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+  .comp-card { border-radius: 8px; padding: 10px; }
+  .comp-card-title { font-size: 11px; font-weight: 700; letter-spacing: 1px; margin-bottom: 6px; }
+
+  .rec-card {
+    border-radius: 8px; padding: 12px 14px; position: relative; overflow: hidden;
+    cursor: pointer; transition: all 0.15s;
+  }
+  .rec-card:hover { transform: translateY(-1px); }
+  .best-badge {
+    position: absolute; top: 0; right: 0; background: var(--gold); color: var(--blue-dark);
+    font-size: 9px; font-weight: 800; padding: 2px 8px; border-radius: 0 0 0 6px; letter-spacing: 1px;
+  }
+  .rec-row { display: flex; align-items: center; gap: 10px; }
+  .rec-emoji { font-size: 28px; }
+  .rec-name { font-size: 16px; font-weight: 700; }
+  .rec-sub { font-size: 11px; opacity: 0.55; margin-top: 2px; }
+  .rec-score { font-size: 22px; font-weight: 800; text-align: right; }
+  .rec-hint { font-size: 9px; color: var(--blue-accent); opacity: 0.6; }
+  .rec-tags { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 4px; }
+  .rec-tag { font-size: 10px; padding: 2px 7px; border-radius: 4px; font-weight: 600; }
+
+  .wr-badge {
+    font-size: 10px; padding: 2px 6px; border-radius: 3px; font-weight: 700; margin-left: 4px;
+  }
+
+  .threat-box { border-radius: 8px; padding: 12px; margin-bottom: 14px; }
+  .tag { font-size: 11px; padding: 3px 8px; border-radius: 4px; font-weight: 700; }
+
+  .rune-box { border-radius: 8px; padding: 14px; }
+  .rune-icon { font-size: 32px; }
+  .rune-name { font-size: 16px; font-weight: 700; }
+
+  .item-row {
+    border-radius: 8px; padding: 10px 12px; display: flex; align-items: center; gap: 10px;
+  }
+  .item-num {
+    width: 24px; height: 24px; border-radius: 4px; display: flex; align-items: center;
+    justify-content: center; font-size: 12px; font-weight: 800;
+  }
+  .item-label { font-size: 9px; font-weight: 600; margin-left: auto; }
+
+  .adapt-box { border-radius: 8px; padding: 12px; }
+  .adapt-line { font-size: 12px; padding: 4px 0; display: flex; align-items: center; gap: 6px; }
+</style>
+</head>
+<body>
+
+<div id="app"></div>
+
+<script>
+// ═══════════════════════════════════════════════════════
+// FULL DRAFT ASSISTANT — Riot API Integration
+// ═══════════════════════════════════════════════════════
+
+const API_URL = "http://localhost:3001";
+
+// ─── State ───
+const state = {
+  phase: "draft",
+  myRole: "mid",
+  hasCounterpick: false,
+  allyTeam: [],
+  enemyTeam: [],
+  champPool: [],
+  enemyRoles: {},
+  showResults: false,
+  recommendations: [],
+  buildChamp: "",
+  buildEnemies: [],
+  buildResult: null,
+  // API data
+  apiConnected: false,
+  apiLoading: true,
+  apiData: null, // { champions: {}, laneMatchups: {} }
+};
+
+// ═══════════════════════════════════════════════════════
+// CHAMPION DATABASE (fallback)
+// ═══════════════════════════════════════════════════════
+const CHAMPIONS=[
+{name:"Aatrox",roles:["top"],dmgType:"ad",tags:["bruiser","drain-tank","teamfight"],blindScore:8,sprite:"⚔️",buildClass:"ad-bruiser"},
+{name:"Camille",roles:["top"],dmgType:"mixed",tags:["skirmisher","split-push","mobility"],blindScore:6,sprite:"🗡️",buildClass:"ad-bruiser"},
+{name:"Darius",roles:["top"],dmgType:"ad",tags:["juggernaut","lane-bully","teamfight"],blindScore:7,sprite:"🪓",buildClass:"ad-juggernaut"},
+{name:"Fiora",roles:["top"],dmgType:"ad",tags:["duelist","split-push","scaling"],blindScore:5,sprite:"🤺",buildClass:"ad-bruiser"},
+{name:"Gangplank",roles:["top"],dmgType:"mixed",tags:["scaling","poke","teamfight","global"],blindScore:6,sprite:"🏴‍☠️",buildClass:"ad-crit"},
+{name:"Garen",roles:["top"],dmgType:"ad",tags:["juggernaut","simple","lane-bully"],blindScore:7,sprite:"🛡️",buildClass:"ad-juggernaut"},
+{name:"Gnar",roles:["top"],dmgType:"mixed",tags:["teamfight","engage","ranged"],blindScore:8,sprite:"🐾",buildClass:"tank-bruiser"},
+{name:"Gwen",roles:["top"],dmgType:"ap",tags:["duelist","scaling","split-push"],blindScore:6,sprite:"✂️",buildClass:"ap-bruiser"},
+{name:"Illaoi",roles:["top"],dmgType:"ad",tags:["juggernaut","lane-bully","zone-control"],blindScore:5,sprite:"🐙",buildClass:"ad-juggernaut"},
+{name:"Irelia",roles:["top","mid"],dmgType:"ad",tags:["skirmisher","mobility","teamfight"],blindScore:6,sprite:"🌀",buildClass:"ad-bruiser"},
+{name:"Jax",roles:["top"],dmgType:"mixed",tags:["duelist","split-push","scaling"],blindScore:7,sprite:"🏮",buildClass:"ad-bruiser"},
+{name:"Jayce",roles:["top","mid"],dmgType:"ad",tags:["poke","lane-bully","ranged"],blindScore:6,sprite:"⚡",buildClass:"ad-lethality"},
+{name:"K'Sante",roles:["top"],dmgType:"mixed",tags:["tank","skirmisher","engage"],blindScore:7,sprite:"🥊",buildClass:"tank"},
+{name:"Kennen",roles:["top"],dmgType:"ap",tags:["teamfight","engage","ranged"],blindScore:7,sprite:"⛈️",buildClass:"ap-mage"},
+{name:"Malphite",roles:["top"],dmgType:"ap",tags:["tank","engage","teamfight"],blindScore:7,sprite:"🪨",buildClass:"tank"},
+{name:"Mordekaiser",roles:["top"],dmgType:"ap",tags:["juggernaut","drain-tank","isolation"],blindScore:7,sprite:"👑",buildClass:"ap-bruiser"},
+{name:"Nasus",roles:["top"],dmgType:"ad",tags:["juggernaut","scaling","split-push"],blindScore:5,sprite:"🐕",buildClass:"ad-juggernaut"},
+{name:"Ornn",roles:["top"],dmgType:"mixed",tags:["tank","engage","teamfight","scaling"],blindScore:9,sprite:"🔥",buildClass:"tank"},
+{name:"Renekton",roles:["top"],dmgType:"ad",tags:["bruiser","lane-bully","dive"],blindScore:7,sprite:"🐊",buildClass:"ad-bruiser"},
+{name:"Riven",roles:["top"],dmgType:"ad",tags:["skirmisher","mobility","snowball"],blindScore:5,sprite:"💚",buildClass:"ad-bruiser"},
+{name:"Sett",roles:["top"],dmgType:"ad",tags:["juggernaut","teamfight","engage"],blindScore:7,sprite:"👊",buildClass:"ad-juggernaut"},
+{name:"Shen",roles:["top"],dmgType:"mixed",tags:["tank","global","peel","split-push"],blindScore:8,sprite:"🥷",buildClass:"tank"},
+{name:"Singed",roles:["top"],dmgType:"ap",tags:["proxy","disruption","zone-control"],blindScore:4,sprite:"🧪",buildClass:"ap-bruiser"},
+{name:"Teemo",roles:["top"],dmgType:"ap",tags:["ranged","poke","zone-control"],blindScore:4,sprite:"🍄",buildClass:"ap-mage"},
+{name:"Tryndamere",roles:["top"],dmgType:"ad",tags:["duelist","split-push","scaling"],blindScore:5,sprite:"😤",buildClass:"ad-crit"},
+{name:"Urgot",roles:["top"],dmgType:"ad",tags:["juggernaut","ranged","teamfight"],blindScore:7,sprite:"🦀",buildClass:"ad-juggernaut"},
+{name:"Volibear",roles:["top","jungle"],dmgType:"mixed",tags:["juggernaut","dive","engage"],blindScore:7,sprite:"🐻",buildClass:"tank-bruiser"},
+{name:"Yorick",roles:["top"],dmgType:"ad",tags:["split-push","siege","scaling"],blindScore:5,sprite:"⛏️",buildClass:"ad-bruiser"},
+{name:"Yasuo",roles:["mid","top"],dmgType:"ad",tags:["skirmisher","scaling","mobility"],blindScore:5,sprite:"🌬️",buildClass:"ad-crit"},
+{name:"Yone",roles:["mid","top"],dmgType:"mixed",tags:["skirmisher","scaling","teamfight"],blindScore:6,sprite:"👹",buildClass:"ad-crit"},
+{name:"Vladimir",roles:["mid","top"],dmgType:"ap",tags:["mage","scaling","drain-tank","teamfight"],blindScore:7,sprite:"🩸",buildClass:"ap-mage"},
+{name:"Ahri",roles:["mid"],dmgType:"ap",tags:["mage","pick","mobility","safe"],blindScore:8,sprite:"🦊",buildClass:"ap-mage"},
+{name:"Akali",roles:["mid","top"],dmgType:"ap",tags:["assassin","mobility","snowball"],blindScore:5,sprite:"🌙",buildClass:"ap-assassin"},
+{name:"Anivia",roles:["mid"],dmgType:"ap",tags:["mage","zone-control","scaling","waveclear"],blindScore:6,sprite:"🧊",buildClass:"ap-mage"},
+{name:"Annie",roles:["mid"],dmgType:"ap",tags:["mage","burst","engage","simple"],blindScore:7,sprite:"🧸",buildClass:"ap-burst"},
+{name:"Akshan",roles:["mid"],dmgType:"ad",tags:["marksman","roam","mobility"],blindScore:6,sprite:"🪝",buildClass:"ad-crit"},
+{name:"Azir",roles:["mid"],dmgType:"ap",tags:["mage","scaling","dps","zone-control"],blindScore:5,sprite:"☀️",buildClass:"ap-mage"},
+{name:"Cassiopeia",roles:["mid"],dmgType:"ap",tags:["mage","dps","scaling","zone-control"],blindScore:6,sprite:"🐍",buildClass:"ap-mage"},
+{name:"Corki",roles:["mid"],dmgType:"mixed",tags:["poke","scaling","marksman"],blindScore:7,sprite:"✈️",buildClass:"ad-crit"},
+{name:"Diana",roles:["mid","jungle"],dmgType:"ap",tags:["assassin","dive","teamfight"],blindScore:6,sprite:"🌓",buildClass:"ap-assassin"},
+{name:"Ekko",roles:["mid","jungle"],dmgType:"ap",tags:["assassin","mobility","scaling"],blindScore:7,sprite:"⏰",buildClass:"ap-assassin"},
+{name:"Fizz",roles:["mid"],dmgType:"ap",tags:["assassin","burst","mobility"],blindScore:6,sprite:"🐟",buildClass:"ap-assassin"},
+{name:"Galio",roles:["mid"],dmgType:"ap",tags:["tank","engage","global","teamfight"],blindScore:8,sprite:"🗿",buildClass:"ap-bruiser"},
+{name:"Hwei",roles:["mid"],dmgType:"ap",tags:["mage","poke","zone-control","waveclear","teamfight"],blindScore:7,sprite:"🎨",buildClass:"ap-mage"},
+{name:"Kassadin",roles:["mid"],dmgType:"ap",tags:["assassin","scaling","mobility"],blindScore:4,sprite:"🌌",buildClass:"ap-assassin"},
+{name:"Katarina",roles:["mid"],dmgType:"mixed",tags:["assassin","snowball","teamfight","mobility"],blindScore:5,sprite:"🗡️",buildClass:"ap-assassin"},
+{name:"LeBlanc",roles:["mid"],dmgType:"ap",tags:["assassin","burst","pick","mobility"],blindScore:6,sprite:"🎭",buildClass:"ap-burst"},
+{name:"Lissandra",roles:["mid"],dmgType:"ap",tags:["mage","engage","teamfight","safe"],blindScore:7,sprite:"❄️",buildClass:"ap-mage"},
+{name:"Lux",roles:["mid","support"],dmgType:"ap",tags:["mage","burst","poke","waveclear"],blindScore:7,sprite:"✨",buildClass:"ap-burst"},
+{name:"Malzahar",roles:["mid"],dmgType:"ap",tags:["mage","waveclear","lockdown","safe"],blindScore:8,sprite:"🔮",buildClass:"ap-mage"},
+{name:"Naafiri",roles:["mid"],dmgType:"ad",tags:["assassin","burst","roam","simple"],blindScore:6,sprite:"🐺",buildClass:"ad-lethality"},
+{name:"Orianna",roles:["mid"],dmgType:"ap",tags:["mage","teamfight","zone-control","safe"],blindScore:8,sprite:"⚙️",buildClass:"ap-mage"},
+{name:"Qiyana",roles:["mid"],dmgType:"ad",tags:["assassin","burst","roam"],blindScore:5,sprite:"💍",buildClass:"ad-lethality"},
+{name:"Ryze",roles:["mid"],dmgType:"ap",tags:["mage","scaling","dps","global"],blindScore:5,sprite:"📜",buildClass:"ap-mage"},
+{name:"Sylas",roles:["mid"],dmgType:"ap",tags:["bruiser","skirmisher","teamfight"],blindScore:7,sprite:"⛓️",buildClass:"ap-bruiser"},
+{name:"Syndra",roles:["mid"],dmgType:"ap",tags:["mage","burst","lane-bully"],blindScore:7,sprite:"🟣",buildClass:"ap-burst"},
+{name:"Taliyah",roles:["mid","jungle"],dmgType:"ap",tags:["mage","roam","zone-control"],blindScore:6,sprite:"🪨",buildClass:"ap-mage"},
+{name:"TwistedFate",roles:["mid"],dmgType:"mixed",tags:["mage","global","roam","waveclear"],blindScore:7,sprite:"🃏",buildClass:"ap-mage"},
+{name:"Veigar",roles:["mid"],dmgType:"ap",tags:["mage","scaling","burst","zone-control"],blindScore:6,sprite:"🎩",buildClass:"ap-burst"},
+{name:"Vex",roles:["mid"],dmgType:"ap",tags:["mage","burst","anti-mobility","teamfight"],blindScore:7,sprite:"😈",buildClass:"ap-burst"},
+{name:"Viktor",roles:["mid"],dmgType:"ap",tags:["mage","scaling","zone-control","waveclear"],blindScore:7,sprite:"🤖",buildClass:"ap-mage"},
+{name:"Zed",roles:["mid"],dmgType:"ad",tags:["assassin","burst","split-push"],blindScore:6,sprite:"🥷",buildClass:"ad-lethality"},
+{name:"Zoe",roles:["mid"],dmgType:"ap",tags:["mage","poke","burst","pick"],blindScore:6,sprite:"🌠",buildClass:"ap-burst"},
+{name:"Amumu",roles:["jungle"],dmgType:"ap",tags:["tank","engage","teamfight"],blindScore:7,sprite:"😢",buildClass:"tank"},
+{name:"BelVeth",roles:["jungle"],dmgType:"ad",tags:["scaling","dps","split-push"],blindScore:5,sprite:"🦋",buildClass:"ad-bruiser"},
+{name:"Briar",roles:["jungle"],dmgType:"ad",tags:["bruiser","dive","snowball"],blindScore:6,sprite:"🧛",buildClass:"ad-bruiser"},
+{name:"Elise",roles:["jungle"],dmgType:"ap",tags:["assassin","dive","early-game"],blindScore:6,sprite:"🕷️",buildClass:"ap-assassin"},
+{name:"Evelynn",roles:["jungle"],dmgType:"ap",tags:["assassin","scaling","pick","stealth"],blindScore:5,sprite:"💜",buildClass:"ap-assassin"},
+{name:"Graves",roles:["jungle"],dmgType:"ad",tags:["marksman","bruiser","invade"],blindScore:7,sprite:"🔫",buildClass:"ad-bruiser"},
+{name:"Hecarim",roles:["jungle"],dmgType:"ad",tags:["bruiser","dive","engage","teamfight"],blindScore:7,sprite:"🐴",buildClass:"ad-bruiser"},
+{name:"JarvanIV",roles:["jungle"],dmgType:"ad",tags:["bruiser","engage","teamfight","early-game"],blindScore:8,sprite:"🏰",buildClass:"ad-bruiser"},
+{name:"Kayn",roles:["jungle"],dmgType:"ad",tags:["assassin","bruiser","scaling","mobility"],blindScore:7,sprite:"😈",buildClass:"ad-lethality"},
+{name:"Kha'Zix",roles:["jungle"],dmgType:"ad",tags:["assassin","isolation","invade"],blindScore:7,sprite:"🦗",buildClass:"ad-lethality"},
+{name:"Kindred",roles:["jungle"],dmgType:"ad",tags:["marksman","scaling","invade"],blindScore:6,sprite:"🐑",buildClass:"ad-crit"},
+{name:"Lee Sin",roles:["jungle"],dmgType:"ad",tags:["bruiser","mobility","early-game","pick"],blindScore:7,sprite:"🥋",buildClass:"ad-bruiser"},
+{name:"Lillia",roles:["jungle"],dmgType:"ap",tags:["mage","teamfight","scaling","speed"],blindScore:7,sprite:"🦌",buildClass:"ap-mage"},
+{name:"Master Yi",roles:["jungle"],dmgType:"ad",tags:["duelist","scaling","dps"],blindScore:4,sprite:"🧘",buildClass:"ad-crit"},
+{name:"Nidalee",roles:["jungle"],dmgType:"ap",tags:["poke","early-game","invade"],blindScore:5,sprite:"🐆",buildClass:"ap-assassin"},
+{name:"Nocturne",roles:["jungle"],dmgType:"ad",tags:["assassin","dive","global","pick"],blindScore:7,sprite:"🌑",buildClass:"ad-lethality"},
+{name:"Nunu",roles:["jungle"],dmgType:"ap",tags:["tank","objective-control","roam","engage"],blindScore:7,sprite:"⛄",buildClass:"tank"},
+{name:"Rammus",roles:["jungle"],dmgType:"mixed",tags:["tank","engage","anti-ad"],blindScore:5,sprite:"🐢",buildClass:"tank"},
+{name:"Rek'Sai",roles:["jungle"],dmgType:"ad",tags:["bruiser","early-game","dive"],blindScore:7,sprite:"🦈",buildClass:"ad-bruiser"},
+{name:"Sejuani",roles:["jungle"],dmgType:"ap",tags:["tank","engage","teamfight","lockdown"],blindScore:7,sprite:"🐗",buildClass:"tank"},
+{name:"Shaco",roles:["jungle"],dmgType:"ad",tags:["assassin","stealth","trickster","split-push"],blindScore:5,sprite:"🤡",buildClass:"ad-lethality"},
+{name:"Viego",roles:["jungle"],dmgType:"ad",tags:["skirmisher","snowball","teamfight"],blindScore:7,sprite:"👻",buildClass:"ad-bruiser"},
+{name:"Vi",roles:["jungle"],dmgType:"ad",tags:["bruiser","dive","pick","engage"],blindScore:7,sprite:"🥊",buildClass:"ad-bruiser"},
+{name:"Warwick",roles:["jungle","top"],dmgType:"mixed",tags:["bruiser","drain-tank","dive"],blindScore:7,sprite:"🐺",buildClass:"tank-bruiser"},
+{name:"Xin Zhao",roles:["jungle"],dmgType:"ad",tags:["bruiser","early-game","dive"],blindScore:7,sprite:"🔱",buildClass:"ad-bruiser"},
+{name:"Zac",roles:["jungle"],dmgType:"ap",tags:["tank","engage","teamfight"],blindScore:8,sprite:"🟢",buildClass:"tank"},
+{name:"Aphelios",roles:["adc"],dmgType:"ad",tags:["marksman","dps","scaling"],blindScore:5,sprite:"🌙",buildClass:"ad-crit"},
+{name:"Ashe",roles:["adc"],dmgType:"ad",tags:["marksman","utility","engage","safe"],blindScore:8,sprite:"🏹",buildClass:"ad-crit"},
+{name:"Caitlyn",roles:["adc"],dmgType:"ad",tags:["marksman","poke","siege","safe"],blindScore:8,sprite:"🎯",buildClass:"ad-crit"},
+{name:"Draven",roles:["adc"],dmgType:"ad",tags:["marksman","lane-bully","snowball"],blindScore:6,sprite:"🪓",buildClass:"ad-crit"},
+{name:"Ezreal",roles:["adc"],dmgType:"mixed",tags:["marksman","poke","safe","mobility"],blindScore:8,sprite:"💫",buildClass:"ad-caster"},
+{name:"Jhin",roles:["adc"],dmgType:"ad",tags:["marksman","utility","pick","poke"],blindScore:8,sprite:"🎭",buildClass:"ad-crit"},
+{name:"Jinx",roles:["adc"],dmgType:"ad",tags:["marksman","scaling","teamfight","dps"],blindScore:7,sprite:"💥",buildClass:"ad-crit"},
+{name:"Kai'Sa",roles:["adc"],dmgType:"mixed",tags:["marksman","assassin","scaling","dive"],blindScore:7,sprite:"🦋",buildClass:"ad-crit"},
+{name:"Kalista",roles:["adc"],dmgType:"ad",tags:["marksman","mobility","objective-control"],blindScore:5,sprite:"👻",buildClass:"ad-crit"},
+{name:"Kog'Maw",roles:["adc"],dmgType:"mixed",tags:["marksman","scaling","dps"],blindScore:4,sprite:"🐛",buildClass:"ad-crit"},
+{name:"Lucian",roles:["adc"],dmgType:"ad",tags:["marksman","lane-bully","burst","mobility"],blindScore:7,sprite:"🔫",buildClass:"ad-crit"},
+{name:"MissFortune",roles:["adc"],dmgType:"ad",tags:["marksman","teamfight","lane-bully","poke"],blindScore:8,sprite:"🏴‍☠️",buildClass:"ad-lethality"},
+{name:"Samira",roles:["adc"],dmgType:"ad",tags:["marksman","dive","teamfight","snowball"],blindScore:5,sprite:"💃",buildClass:"ad-crit"},
+{name:"Sivir",roles:["adc"],dmgType:"ad",tags:["marksman","waveclear","utility","safe"],blindScore:7,sprite:"🪃",buildClass:"ad-crit"},
+{name:"Tristana",roles:["adc"],dmgType:"ad",tags:["marksman","scaling","siege","mobility"],blindScore:7,sprite:"💣",buildClass:"ad-crit"},
+{name:"Twitch",roles:["adc"],dmgType:"ad",tags:["marksman","stealth","scaling","teamfight"],blindScore:5,sprite:"🐀",buildClass:"ad-crit"},
+{name:"Vayne",roles:["adc","top"],dmgType:"ad",tags:["marksman","duelist","scaling","dps"],blindScore:5,sprite:"🦇",buildClass:"ad-crit"},
+{name:"Varus",roles:["adc"],dmgType:"mixed",tags:["marksman","poke","engage","dps"],blindScore:7,sprite:"🏹",buildClass:"ad-crit"},
+{name:"Xayah",roles:["adc"],dmgType:"ad",tags:["marksman","safe","teamfight","dps"],blindScore:7,sprite:"🪶",buildClass:"ad-crit"},
+{name:"Zeri",roles:["adc"],dmgType:"ad",tags:["marksman","mobility","scaling","dps"],blindScore:6,sprite:"⚡",buildClass:"ad-crit"},
+{name:"Alistar",roles:["support"],dmgType:"ap",tags:["tank","engage","peel","dive"],blindScore:7,sprite:"🐂",buildClass:"tank-support"},
+{name:"Bard",roles:["support"],dmgType:"ap",tags:["enchanter","roam","pick","utility"],blindScore:6,sprite:"🎶",buildClass:"enchanter"},
+{name:"Blitzcrank",roles:["support"],dmgType:"ap",tags:["tank","pick","engage"],blindScore:6,sprite:"🤖",buildClass:"tank-support"},
+{name:"Brand",roles:["support"],dmgType:"ap",tags:["mage","dps","teamfight","poke"],blindScore:6,sprite:"🔥",buildClass:"ap-mage"},
+{name:"Braum",roles:["support"],dmgType:"mixed",tags:["tank","peel","engage","teamfight"],blindScore:7,sprite:"🛡️",buildClass:"tank-support"},
+{name:"Janna",roles:["support"],dmgType:"ap",tags:["enchanter","peel","disengage","safe"],blindScore:7,sprite:"🌪️",buildClass:"enchanter"},
+{name:"Karma",roles:["support"],dmgType:"ap",tags:["enchanter","poke","utility","safe"],blindScore:7,sprite:"🔆",buildClass:"enchanter"},
+{name:"Leona",roles:["support"],dmgType:"mixed",tags:["tank","engage","lockdown","dive"],blindScore:7,sprite:"☀️",buildClass:"tank-support"},
+{name:"Lulu",roles:["support"],dmgType:"ap",tags:["enchanter","peel","scaling","utility"],blindScore:8,sprite:"🧚",buildClass:"enchanter"},
+{name:"Milio",roles:["support"],dmgType:"ap",tags:["enchanter","peel","safe","disengage"],blindScore:7,sprite:"🔥",buildClass:"enchanter"},
+{name:"Morgana",roles:["support"],dmgType:"ap",tags:["mage","peel","pick","disengage"],blindScore:7,sprite:"😇",buildClass:"ap-mage"},
+{name:"Nami",roles:["support"],dmgType:"ap",tags:["enchanter","poke","engage","peel"],blindScore:8,sprite:"🌊",buildClass:"enchanter"},
+{name:"Nautilus",roles:["support"],dmgType:"ap",tags:["tank","engage","lockdown","pick"],blindScore:7,sprite:"⚓",buildClass:"tank-support"},
+{name:"Pyke",roles:["support"],dmgType:"ad",tags:["assassin","pick","roam","snowball"],blindScore:6,sprite:"🔪",buildClass:"ad-lethality"},
+{name:"Rakan",roles:["support"],dmgType:"ap",tags:["enchanter","engage","teamfight","mobility"],blindScore:7,sprite:"💃",buildClass:"enchanter"},
+{name:"Renata",roles:["support"],dmgType:"ap",tags:["enchanter","peel","teamfight","utility"],blindScore:6,sprite:"💀",buildClass:"enchanter"},
+{name:"Senna",roles:["support","adc"],dmgType:"ad",tags:["marksman","enchanter","scaling","poke"],blindScore:7,sprite:"🌿",buildClass:"ad-crit"},
+{name:"Sona",roles:["support"],dmgType:"ap",tags:["enchanter","scaling","teamfight","peel"],blindScore:7,sprite:"🎵",buildClass:"enchanter"},
+{name:"Soraka",roles:["support"],dmgType:"ap",tags:["enchanter","healing","safe","global"],blindScore:7,sprite:"⭐",buildClass:"enchanter"},
+{name:"Thresh",roles:["support"],dmgType:"ap",tags:["tank","pick","peel","engage"],blindScore:8,sprite:"🔗",buildClass:"tank-support"},
+{name:"Xerath",roles:["support","mid"],dmgType:"ap",tags:["mage","poke","siege"],blindScore:6,sprite:"⚡",buildClass:"ap-burst"},
+{name:"Yuumi",roles:["support"],dmgType:"ap",tags:["enchanter","scaling","safe","healing"],blindScore:5,sprite:"🐱",buildClass:"enchanter"},
+{name:"Zyra",roles:["support"],dmgType:"ap",tags:["mage","zone-control","poke","disengage"],blindScore:6,sprite:"🌹",buildClass:"ap-mage"},
+// ─── Additional Champions ───
+{name:"Ambessa",roles:["top"],dmgType:"ad",tags:["bruiser","mobility","dive","skirmisher"],blindScore:6,sprite:"⚔️",buildClass:"ad-bruiser"},
+{name:"Aurelion Sol",roles:["mid"],dmgType:"ap",tags:["mage","scaling","zone-control","dps"],blindScore:6,sprite:"🌟",buildClass:"ap-mage"},
+{name:"Aurora",roles:["mid","top"],dmgType:"ap",tags:["mage","mobility","teamfight","burst"],blindScore:6,sprite:"🌌",buildClass:"ap-mage"},
+{name:"Cho'Gath",roles:["top"],dmgType:"ap",tags:["tank","scaling","engage","zone-control"],blindScore:7,sprite:"🦖",buildClass:"tank"},
+{name:"Dr. Mundo",roles:["top","jungle"],dmgType:"mixed",tags:["juggernaut","drain-tank","scaling"],blindScore:7,sprite:"💊",buildClass:"tank-bruiser"},
+{name:"Fiddlesticks",roles:["jungle"],dmgType:"ap",tags:["mage","teamfight","engage","zone-control"],blindScore:6,sprite:"🎃",buildClass:"ap-mage"},
+{name:"Gragas",roles:["jungle","top"],dmgType:"ap",tags:["bruiser","engage","teamfight","dive"],blindScore:7,sprite:"🍺",buildClass:"ap-bruiser"},
+{name:"Heimerdinger",roles:["mid","top"],dmgType:"ap",tags:["mage","zone-control","siege","lane-bully"],blindScore:5,sprite:"🔧",buildClass:"ap-mage"},
+{name:"Ivern",roles:["jungle"],dmgType:"ap",tags:["enchanter","peel","utility","safe"],blindScore:5,sprite:"🌳",buildClass:"enchanter"},
+{name:"Karthus",roles:["jungle","mid"],dmgType:"ap",tags:["mage","scaling","global","dps"],blindScore:6,sprite:"💀",buildClass:"ap-mage"},
+{name:"Kled",roles:["top"],dmgType:"ad",tags:["bruiser","dive","engage","lane-bully"],blindScore:6,sprite:"🐊",buildClass:"ad-bruiser"},
+{name:"Maokai",roles:["jungle","support","top"],dmgType:"ap",tags:["tank","engage","zone-control","teamfight"],blindScore:7,sprite:"🌲",buildClass:"tank"},
+{name:"Neeko",roles:["mid","top"],dmgType:"ap",tags:["mage","teamfight","burst","engage"],blindScore:6,sprite:"🦎",buildClass:"ap-burst"},
+{name:"Nilah",roles:["adc"],dmgType:"ad",tags:["marksman","dive","teamfight","scaling"],blindScore:5,sprite:"🌊",buildClass:"ad-crit"},
+{name:"Olaf",roles:["top","jungle"],dmgType:"ad",tags:["juggernaut","drain-tank","dive","early-game"],blindScore:7,sprite:"🪓",buildClass:"ad-juggernaut"},
+{name:"Pantheon",roles:["mid","top","support"],dmgType:"ad",tags:["bruiser","dive","roam","early-game"],blindScore:7,sprite:"🛡️",buildClass:"ad-bruiser"},
+{name:"Poppy",roles:["jungle","top","support"],dmgType:"ad",tags:["tank","peel","anti-mobility","disengage"],blindScore:7,sprite:"🔨",buildClass:"tank"},
+{name:"Quinn",roles:["top"],dmgType:"ad",tags:["marksman","ranged","roam","lane-bully"],blindScore:5,sprite:"🦅",buildClass:"ad-lethality"},
+{name:"Rell",roles:["support"],dmgType:"mixed",tags:["tank","engage","teamfight","lockdown"],blindScore:7,sprite:"🐴",buildClass:"tank-support"},
+{name:"Rengar",roles:["jungle","top"],dmgType:"ad",tags:["assassin","burst","stealth","invade"],blindScore:6,sprite:"🦁",buildClass:"ad-lethality"},
+{name:"Rumble",roles:["top","mid"],dmgType:"ap",tags:["mage","zone-control","teamfight","lane-bully"],blindScore:6,sprite:"🤖",buildClass:"ap-bruiser"},
+{name:"Seraphine",roles:["support","mid","adc"],dmgType:"ap",tags:["enchanter","teamfight","poke","scaling"],blindScore:7,sprite:"🎤",buildClass:"enchanter"},
+{name:"Sion",roles:["top"],dmgType:"ad",tags:["tank","engage","scaling","waveclear"],blindScore:7,sprite:"💀",buildClass:"tank"},
+{name:"Skarner",roles:["jungle"],dmgType:"mixed",tags:["tank","engage","pick","lockdown"],blindScore:7,sprite:"🦂",buildClass:"tank"},
+{name:"Smolder",roles:["adc","mid"],dmgType:"mixed",tags:["marksman","scaling","poke","safe"],blindScore:7,sprite:"🐉",buildClass:"ad-crit"},
+{name:"Swain",roles:["mid","support","top"],dmgType:"ap",tags:["mage","drain-tank","teamfight","engage"],blindScore:6,sprite:"🐦",buildClass:"ap-bruiser"},
+{name:"Tahm Kench",roles:["top","support"],dmgType:"ap",tags:["tank","peel","engage","drain-tank"],blindScore:6,sprite:"🐸",buildClass:"tank"},
+{name:"Taric",roles:["support"],dmgType:"mixed",tags:["tank","enchanter","peel","teamfight"],blindScore:6,sprite:"💎",buildClass:"tank-support"},
+{name:"Trundle",roles:["jungle","top"],dmgType:"ad",tags:["bruiser","duelist","split-push","objective-control"],blindScore:7,sprite:"🧊",buildClass:"ad-bruiser"},
+{name:"Udyr",roles:["jungle","top"],dmgType:"mixed",tags:["bruiser","drain-tank","dive","teamfight"],blindScore:7,sprite:"🐻",buildClass:"tank-bruiser"},
+{name:"Vel'Koz",roles:["mid","support"],dmgType:"ap",tags:["mage","poke","zone-control","dps"],blindScore:6,sprite:"👁️",buildClass:"ap-mage"},
+{name:"Wukong",roles:["top","jungle"],dmgType:"ad",tags:["bruiser","engage","teamfight","dive"],blindScore:7,sprite:"🐒",buildClass:"ad-bruiser"},
+{name:"Ziggs",roles:["mid","adc"],dmgType:"ap",tags:["mage","poke","siege","waveclear"],blindScore:6,sprite:"💣",buildClass:"ap-mage"},
+{name:"Zilean",roles:["mid","support"],dmgType:"ap",tags:["mage","utility","scaling","safe"],blindScore:6,sprite:"⏳",buildClass:"ap-mage"},
+{name:"Talon",roles:["mid","jungle"],dmgType:"ad",tags:["assassin","roam","burst","mobility"],blindScore:6,sprite:"🗡️",buildClass:"ad-lethality"},
+{name:"Shyvana",roles:["jungle"],dmgType:"mixed",tags:["bruiser","scaling","teamfight","dps"],blindScore:6,sprite:"🐲",buildClass:"ap-bruiser"},
+];
+
+// Hardcoded fallback matchups
+const FALLBACK_MATCHUPS=[
+{champ:"Aatrox",beats:["Gangplank","Gnar","Kennen","Jayce","Shen"],losesTo:["Fiora","Irelia","Vayne","Tryndamere"]},
+{champ:"Camille",beats:["Gangplank","Ornn","Malphite","Shen","Nasus"],losesTo:["Jax","Darius","Renekton","Volibear"]},
+{champ:"Darius",beats:["Camille","Nasus","Yorick","Garen","Malphite"],losesTo:["Vayne","Gnar","Kennen","Teemo"]},
+{champ:"Fiora",beats:["Aatrox","Ornn","Malphite","Sett","Mordekaiser"],losesTo:["Kennen","Teemo","Gnar","Singed"]},
+{champ:"Gnar",beats:["Darius","Garen","Sett","Aatrox"],losesTo:["Irelia","Camille","Jax","Riven"]},
+{champ:"Irelia",beats:["Gnar","Kennen","Gangplank","Aatrox","Riven"],losesTo:["Jax","Tryndamere","Volibear","Sett","Renekton"]},
+{champ:"Jax",beats:["Irelia","Camille","Fiora","Gwen","Tryndamere"],losesTo:["Malphite","Kennen","Gnar","Teemo"]},
+{champ:"Malphite",beats:["Jax","Tryndamere","Yasuo","Yone"],losesTo:["Darius","Gwen","Mordekaiser","Fiora","Sylas"]},
+{champ:"Mordekaiser",beats:["Garen","Malphite","Ornn","Nasus"],losesTo:["Fiora","Vayne","Gwen","Tryndamere"]},
+{champ:"Renekton",beats:["Riven","Camille","Irelia","Yone","Yasuo"],losesTo:["Vayne","Gnar","Kennen","Volibear"]},
+{champ:"Sett",beats:["Riven","Irelia","Yasuo","Yone"],losesTo:["Gnar","Vayne","Kennen","Fiora"]},
+{champ:"Volibear",beats:["Camille","Irelia","Riven","Renekton"],losesTo:["Vayne","Gnar","Singed","Teemo"]},
+{champ:"Ahri",beats:["Veigar","TwistedFate","Viktor","Lux"],losesTo:["Kassadin","Yasuo","Fizz","Annie"]},
+{champ:"Akali",beats:["Viktor","Veigar","Lux","Xerath"],losesTo:["Galio","Annie","Malzahar","Lissandra"]},
+{champ:"Fizz",beats:["Ahri","Lux","Veigar","Viktor","Azir"],losesTo:["Galio","Lissandra","Malzahar","Anivia"]},
+{champ:"Galio",beats:["Fizz","Akali","Katarina","Diana","LeBlanc"],losesTo:["Cassiopeia","Azir","Viktor","Anivia"]},
+{champ:"Hwei",beats:["Veigar","TwistedFate","Malzahar","Viktor","Lux"],losesTo:["Fizz","Zed","Akali","LeBlanc","Naafiri"]},
+{champ:"Kassadin",beats:["Ahri","Akali","Fizz","LeBlanc","Diana"],losesTo:["Zed","Qiyana","Yasuo","Renekton"]},
+{champ:"Lissandra",beats:["Fizz","Akali","Katarina","LeBlanc","Yasuo"],losesTo:["Xerath","Azir","Viktor","Cassiopeia"]},
+{champ:"Malzahar",beats:["Fizz","Akali","Katarina","LeBlanc","Yasuo"],losesTo:["Anivia","Azir","Xerath","Orianna"]},
+{champ:"Naafiri",beats:["Hwei","Lux","Veigar","TwistedFate","Viktor"],losesTo:["Galio","Lissandra","Malzahar","Anivia","Renekton"]},
+{champ:"Orianna",beats:["TwistedFate","Malzahar","Anivia","Kassadin"],losesTo:["Fizz","Zed","LeBlanc","Akali"]},
+{champ:"Sylas",beats:["Ekko","Akali","Kennen","Galio","Malphite"],losesTo:["Cassiopeia","Anivia","Malzahar","Lux"]},
+{champ:"Syndra",beats:["Yasuo","Yone","Fizz","Akali","Zed"],losesTo:["Xerath","LeBlanc","Kassadin"]},
+{champ:"Yasuo",beats:["Kassadin","Lux","Ahri","Orianna"],losesTo:["Renekton","Malzahar","Lissandra","Anivia","Annie"]},
+{champ:"Yone",beats:["Kassadin","Lux","Ahri"],losesTo:["Renekton","Malzahar","Lissandra","Anivia","Sett"]},
+{champ:"Zed",beats:["Kassadin","Lux","Veigar","TwistedFate","Orianna"],losesTo:["Galio","Malzahar","Lissandra","Renekton"]},
+{champ:"Thresh",beats:["Sona","Soraka","Yuumi","Janna"],losesTo:["Morgana","Zyra","Brand"]},
+{champ:"Nautilus",beats:["Sona","Soraka","Yuumi","Lulu"],losesTo:["Morgana","Janna","Braum"]},
+{champ:"Leona",beats:["Sona","Soraka","Yuumi","Lulu"],losesTo:["Morgana","Janna","Braum","Alistar"]},
+{champ:"Morgana",beats:["Thresh","Nautilus","Leona","Blitzcrank","Pyke"],losesTo:["Zyra","Brand","Xerath","Karma"]},
+{champ:"Lulu",beats:["Zyra","Brand","Xerath","Pyke"],losesTo:["Nautilus","Leona","Alistar"]},
+{champ:"Nami",beats:["Thresh","Braum","Rakan","Pyke"],losesTo:["Zyra","Brand","Xerath","Lux"]},
+];
+
+// ═══════════════════════════════════════
+// MATCHUP ENGINE — uses API data when available
+// ═══════════════════════════════════════
+function getMatchupScore(yours, theirs) {
+  // Try API data first
+  if (state.apiData) {
+    const champData = state.apiData.champions[yours];
+    if (champData) {
+      if (champData.strongAgainst && champData.strongAgainst.includes(theirs)) return 1;
+      if (champData.counters && champData.counters.includes(theirs)) return -1;
+    }
+    // Also check lane matchups
+    const lm = state.apiData.laneMatchups;
+    if (lm && lm[yours] && lm[yours][theirs]) {
+      const wr = lm[yours][theirs].winrate;
+      if (wr > 55) return 1;
+      if (wr < 45) return -1;
+      return 0;
+    }
+  }
+  // Fallback to hardcoded
+  const d = FALLBACK_MATCHUPS.find(m => m.champ === yours);
+  if (!d) return 0;
+  if (d.beats && d.beats.includes(theirs)) return 1;
+  if (d.losesTo && d.losesTo.includes(theirs)) return -1;
+  return 0;
+}
+
+function getWinrateVs(yours, theirs) {
+  if (state.apiData && state.apiData.laneMatchups) {
+    const lm = state.apiData.laneMatchups;
+    if (lm[yours] && lm[yours][theirs]) {
+      return lm[yours][theirs].winrate;
+    }
+  }
+  return null;
+}
+
+function getChampWinrate(name) {
+  if (state.apiData && state.apiData.champions[name]) {
+    return state.apiData.champions[name].winrate;
+  }
+  return null;
+}
+
+// ═══════════════════════════════════════
+// The rest of the logic is the same as the artifact
+// but uses the API-aware matchup functions above
+// ═══════════════════════════════════════
+
+function getChampByName(n) { return CHAMPIONS.find(c => c.name === n); }
+
+function analyzeTeamComp(team) {
+  const champs = team.map(getChampByName).filter(Boolean);
+  const allTags = champs.flatMap(c => c.tags);
+  const tc = {}; allTags.forEach(t => { tc[t] = (tc[t]||0)+1; });
+  return {
+    adCount: champs.filter(c=>c.dmgType==="ad").length,
+    apCount: champs.filter(c=>c.dmgType==="ap").length,
+    mixedCount: champs.filter(c=>c.dmgType==="mixed").length,
+    hasEngage: allTags.includes("engage"), hasPeel: allTags.includes("peel")||allTags.includes("enchanter"),
+    hasTank: allTags.includes("tank"),
+    themes: Object.entries(tc).sort((a,b)=>b[1]-a[1]).slice(0,4).map(e=>e[0]),
+  };
+}
+
+function recommendPick() {
+  const { allyTeam, enemyTeam, champPool, myRole, hasCounterpick, enemyRoles } = state;
+  const myComp = analyzeTeamComp(allyTeam), enemyComp = analyzeTeamComp(enemyTeam);
+  const taken = new Set([...allyTeam, ...enemyTeam]);
+
+  return champPool.filter(n => !taken.has(n)).map(name => {
+    const champ = getChampByName(name);
+    if (!champ || !champ.roles.includes(myRole)) return { name, score: -100, reasons: [] };
+    let score = 0; const reasons = [];
+
+    if (hasCounterpick) {
+      const enemyInLane = enemyTeam.filter(e => {
+        if (enemyRoles[e]) return enemyRoles[e] === myRole;
+        return getChampByName(e)?.roles.includes(myRole);
+      });
+      enemyInLane.forEach(enemy => {
+        const ms = getMatchupScore(name, enemy);
+        const wr = getWinrateVs(name, enemy);
+        if (ms === 1) { score += 30; reasons.push("Counters " + enemy + (wr ? " (" + wr + "% WR)" : "")); }
+        if (ms === -1) { score -= 25; reasons.push("Loses to " + enemy + (wr ? " (" + wr + "% WR)" : "")); }
+        if (ms === 0 && wr) { reasons.push("vs " + enemy + ": " + wr + "% WR"); }
+      });
+    } else {
+      score += (champ.blindScore || 5) * 3; reasons.push("Blind: " + champ.blindScore + "/10");
+    }
+
+    // Winrate bonus from API
+    const champWR = getChampWinrate(name);
+    if (champWR) {
+      if (champWR > 52) { score += 5; reasons.push(champWR + "% WR overall"); }
+      if (champWR < 48) { score -= 5; }
+    }
+
+    if (champ.dmgType==="ap"&&myComp.apCount<=myComp.adCount){score+=12;reasons.push("Balances AP");}
+    else if(champ.dmgType==="ad"&&myComp.adCount<=myComp.apCount){score+=12;reasons.push("Balances AD");}
+    else if(champ.dmgType==="mixed"){score+=6;reasons.push("Mixed dmg");}
+    if(champ.dmgType==="ad"&&myComp.adCount>=3){score-=10;reasons.push("Too much AD");}
+    if(champ.dmgType==="ap"&&myComp.apCount>=3){score-=10;reasons.push("Too much AP");}
+    if(!myComp.hasEngage&&champ.tags.includes("engage")){score+=10;reasons.push("Adds engage");}
+    if(!myComp.hasTank&&champ.tags.includes("tank")){score+=8;reasons.push("Adds frontline");}
+    if(!myComp.hasPeel&&(champ.tags.includes("peel")||champ.tags.includes("enchanter"))){score+=8;reasons.push("Adds peel");}
+    if(enemyComp.themes.includes("dive")&&champ.tags.includes("disengage")){score+=8;reasons.push("Counters dive");}
+    if(enemyComp.themes.includes("poke")&&champ.tags.includes("engage")){score+=6;reasons.push("Engage vs poke");}
+    if(enemyComp.themes.includes("assassin")&&(champ.tags.includes("peel")||champ.tags.includes("tank"))){score+=6;reasons.push("Protects vs assassins");}
+    if(myComp.themes?.includes("teamfight")&&champ.tags.includes("teamfight")){score+=4;reasons.push("Teamfight synergy");}
+    return { name, score, reasons, champ };
+  }).filter(s => s.score > -100).sort((a,b) => b.score - a.score).slice(0, 5);
+}
+
+// ═══════════════════════════════════════
+// BUILD & RUNES (same as artifact)
+// ═══════════════════════════════════════
+const RUNE_PAGES={conqueror:{name:"Conqueror",tree:"Precision",icon:"⚔️",desc:"Extended trades"},lethaltempo:{name:"Lethal Tempo",tree:"Precision",icon:"⏩",desc:"AS scaling"},fleetfootwork:{name:"Fleet Footwork",tree:"Precision",icon:"👟",desc:"Lane sustain"},pta:{name:"Press the Attack",tree:"Precision",icon:"🎯",desc:"Burst trades"},electrocute:{name:"Electrocute",tree:"Domination",icon:"⚡",desc:"Burst combo"},darkharvest:{name:"Dark Harvest",tree:"Domination",icon:"🌑",desc:"Scaling burst"},firstStrike:{name:"First Strike",tree:"Inspiration",icon:"💰",desc:"Gold generation"},grasp:{name:"Grasp",tree:"Resolve",icon:"🌿",desc:"Tank trading"},aftershock:{name:"Aftershock",tree:"Resolve",icon:"💥",desc:"Post-CC tank"},guardian:{name:"Guardian",tree:"Resolve",icon:"🛡️",desc:"Shield ally"},arcaneComet:{name:"Arcane Comet",tree:"Sorcery",icon:"☄️",desc:"Poke damage"},aery:{name:"Summon Aery",tree:"Sorcery",icon:"🧚",desc:"Poke + shield"}};
+
+const BUILD_TEMPLATES={"ad-bruiser":{core:["Trinity Force","Sterak's Gage","Death's Dance"],vsAP:{swap:"Death's Dance",with:"Maw of Malmortius",add:"Spirit Visage"},vsAD:{add:"Randuin's Omen"},vsTank:{swap:"Sterak's Gage",with:"Black Cleaver",add:"Blade of the Ruined King"},boots:"Plated Steelcaps",runes:{primary:"conqueror",alt:"grasp",sec:"Resolve"},secRunes:["Bone Plating","Overgrowth"]},"ad-juggernaut":{core:["Stridebreaker","Sterak's Gage","Dead Man's Plate"],vsAP:{swap:"Dead Man's Plate",with:"Force of Nature",add:"Spirit Visage"},vsAD:{add:"Randuin's Omen"},vsTank:{swap:"Stridebreaker",with:"Trinity Force",add:"Black Cleaver"},boots:"Plated Steelcaps",runes:{primary:"conqueror",alt:"grasp",sec:"Resolve"},secRunes:["Bone Plating","Overgrowth"]},"ad-crit":{core:["Infinity Edge","Phantom Dancer","Bloodthirster"],vsAP:{add:"Maw of Malmortius"},vsAD:{add:"Guardian Angel"},vsTank:{swap:"Bloodthirster",with:"Lord Dominik's Regards"},boots:"Berserker's Greaves",runes:{primary:"lethaltempo",alt:"fleetfootwork",sec:"Sorcery"},secRunes:["Absolute Focus","Gathering Storm"]},"ad-lethality":{core:["Youmuu's Ghostblade","Edge of Night","Serylda's Grudge"],vsAP:{swap:"Edge of Night",with:"Maw of Malmortius"},vsTank:{swap:"Edge of Night",with:"Black Cleaver",add:"Lord Dominik's Regards"},boots:"Ionian Boots of Lucidity",runes:{primary:"electrocute",alt:"firstStrike",sec:"Sorcery"},secRunes:["Absolute Focus","Gathering Storm"]},"ad-caster":{core:["Trinity Force","Muramana","Serylda's Grudge"],vsAP:{add:"Maw of Malmortius"},vsTank:{add:"Lord Dominik's Regards"},boots:"Ionian Boots of Lucidity",runes:{primary:"conqueror",alt:"firstStrike",sec:"Sorcery"},secRunes:["Manaflow Band","Transcendence"]},"ap-mage":{core:["Luden's Tempest","Zhonya's Hourglass","Rabadon's Deathcap"],vsAP:{swap:"Zhonya's Hourglass",with:"Banshee's Veil"},vsTank:{swap:"Rabadon's Deathcap",with:"Void Staff",add:"Liandry's Anguish"},boots:"Sorcerer's Shoes",runes:{primary:"arcaneComet",alt:"firstStrike",sec:"Inspiration"},secRunes:["Biscuit Delivery","Cosmic Insight"]},"ap-burst":{core:["Luden's Tempest","Shadowflame","Rabadon's Deathcap"],vsAP:{add:"Banshee's Veil"},vsAD:{add:"Zhonya's Hourglass"},vsTank:{swap:"Shadowflame",with:"Void Staff"},boots:"Sorcerer's Shoes",runes:{primary:"electrocute",alt:"arcaneComet",sec:"Sorcery"},secRunes:["Absolute Focus","Gathering Storm"]},"ap-assassin":{core:["Hextech Rocketbelt","Zhonya's Hourglass","Rabadon's Deathcap"],vsAP:{swap:"Zhonya's Hourglass",with:"Banshee's Veil"},vsTank:{swap:"Rabadon's Deathcap",with:"Void Staff",add:"Riftmaker"},boots:"Sorcerer's Shoes",runes:{primary:"electrocute",alt:"conqueror",sec:"Resolve"},secRunes:["Bone Plating","Unflinching"]},"ap-bruiser":{core:["Riftmaker","Zhonya's Hourglass","Cosmic Drive"],vsAP:{swap:"Cosmic Drive",with:"Banshee's Veil",add:"Spirit Visage"},vsAD:{add:"Randuin's Omen"},vsTank:{add:"Void Staff"},boots:"Plated Steelcaps",runes:{primary:"conqueror",alt:"grasp",sec:"Resolve"},secRunes:["Bone Plating","Overgrowth"]},"tank":{core:["Sunfire Aegis","Thornmail","Force of Nature"],vsAP:{swap:"Thornmail",with:"Spirit Visage",add:"Abyssal Mask"},vsAD:{swap:"Force of Nature",with:"Randuin's Omen",add:"Frozen Heart"},boots:"Plated Steelcaps",runes:{primary:"grasp",alt:"aftershock",sec:"Inspiration"},secRunes:["Biscuit Delivery","Approach Velocity"]},"tank-bruiser":{core:["Sunfire Aegis","Titanic Hydra","Sterak's Gage"],vsAP:{swap:"Titanic Hydra",with:"Spirit Visage",add:"Force of Nature"},vsAD:{add:"Randuin's Omen"},boots:"Plated Steelcaps",runes:{primary:"grasp",alt:"conqueror",sec:"Domination"},secRunes:["Cheap Shot","Ultimate Hunter"]},"tank-support":{core:["Locket of the Iron Solari","Knight's Vow","Zeke's Convergence"],vsAP:{swap:"Knight's Vow",with:"Abyssal Mask"},vsAD:{swap:"Zeke's Convergence",with:"Frozen Heart"},boots:"Mobility Boots",runes:{primary:"aftershock",alt:"guardian",sec:"Inspiration"},secRunes:["Hextech Flashtraption","Cosmic Insight"]},"enchanter":{core:["Moonstone Renewer","Staff of Flowing Water","Redemption"],vsAP:{add:"Mikael's Blessing"},vsAD:{swap:"Staff of Flowing Water",with:"Ardent Censer",add:"Frozen Heart"},boots:"Ionian Boots of Lucidity",runes:{primary:"aery",alt:"guardian",sec:"Resolve"},secRunes:["Bone Plating","Revitalize"]}};
+
+function getBuild(champName, enemies) {
+  const champ = getChampByName(champName); if (!champ) return null;
+  const en = enemies.map(n=>CHAMPIONS.find(c=>c.name===n)).filter(Boolean);
+  const adC=en.filter(c=>c.dmgType==="ad").length, apC=en.filter(c=>c.dmgType==="ap").length;
+  const tankC=en.filter(c=>c.tags.some(t=>["tank","juggernaut"].includes(t))).length;
+  const healC=en.flatMap(c=>c.tags).filter(t=>["drain-tank","healing","enchanter"].includes(t)).length;
+  const analysis={heavyAD:adC>=3,heavyAP:apC>=3,heavyTank:tankC>=2,healHeavy:healC>=2,adCount:adC,apCount:apC};
+
+  // ─── Try API build data first ───
+  if (state.apiData && state.apiData.champions[champName] && state.apiData.champions[champName].build) {
+    const bd = state.apiData.champions[champName].build;
+    const totalGames = bd.games || 0;
+
+    // Items — use situational data if enemy comp is skewed, otherwise default
+    let itemSource = bd.items;
+    let itemLabel = "Most built (all games)";
+    if (analysis.heavyAD && bd.itemsVsHeavyAD.length >= 3) { itemSource = bd.itemsVsHeavyAD; itemLabel = "Built vs heavy AD teams"; }
+    if (analysis.heavyAP && bd.itemsVsHeavyAP.length >= 3) { itemSource = bd.itemsVsHeavyAP; itemLabel = "Built vs heavy AP teams"; }
+
+    const items = itemSource.slice(0, 6).map(i => ({ name: i.name, count: i.count, rate: Math.round((i.count / totalGames) * 100) }));
+    const boots = bd.boots.slice(0, 2).map(b => ({ name: b.name, count: b.count, rate: Math.round((b.count / totalGames) * 100) }));
+
+    // Keystones — situational
+    let keystoneSource = bd.keystones;
+    if (analysis.heavyAD && bd.keystonesVsHeavyAD.length >= 1) keystoneSource = bd.keystonesVsHeavyAD;
+    if (analysis.heavyAP && bd.keystonesVsHeavyAP.length >= 1) keystoneSource = bd.keystonesVsHeavyAP;
+    const keystones = keystoneSource.slice(0, 3).map(k => ({ name: k.name, count: k.count, rate: Math.round((k.count / totalGames) * 100) }));
+    const secTrees = bd.secondaryTrees.slice(0, 2).map(t => ({ name: t.name, count: t.count, rate: Math.round((t.count / totalGames) * 100) }));
+    const secRunes = bd.secondaryRunes.slice(0, 4).map(r => ({ name: r.name, count: r.count, rate: Math.round((r.count / totalGames) * 100) }));
+
+    return {
+      champ, analysis, source: "api", totalGames, itemLabel,
+      items, boots, keystones, secTrees, secRunes,
+      adapt: [], notes: []
+    };
+  }
+
+  // ─── Fallback to hardcoded templates ───
+  const t = BUILD_TEMPLATES[champ.buildClass]; if (!t) return null;
+  let items=[...t.core]; let boots=t.boots; const adapt=[], notes=[];
+  if(analysis.heavyAP||analysis.manyCC){boots="Mercury's Treads";adapt.push("Merc Treads vs AP/CC");}
+  const doAdapt=(cond,cfg)=>{if(!cond||!cfg)return;if(cfg.swap){items=items.map(i=>i===cfg.swap?cfg.with:i);adapt.push(cfg.with+" replaces "+cfg.swap);}if(cfg.add&&!items.includes(cfg.add)){items.push(cfg.add);adapt.push("Added "+cfg.add);}if(cfg.note)notes.push(cfg.note);};
+  doAdapt(analysis.heavyAP,t.vsAP); doAdapt(analysis.heavyAD,t.vsAD); doAdapt(analysis.heavyTank,t.vsTank);
+  if(analysis.healHeavy){const ah=champ.dmgType==="ap"?"Morellonomicon":champ.tags.includes("tank")?"Thornmail":"Mortal Reminder";if(!items.includes(ah)){items.push(ah);adapt.push(ah+" anti-heal");}}
+  const rune=RUNE_PAGES[t.runes.primary], altRune=RUNE_PAGES[t.runes.alt];
+  return{champ, source: "hardcoded", items: items.slice(0,6).map(n=>({name:n})), boots: [{name:boots}], keystones: [{name:rune?.name||"Unknown",icon:rune?.icon}], secTrees:[{name:t.runes.sec}], secRunes: t.secRunes.map(n=>({name:n})), adapt, notes, analysis, rune, altRune, secTree:t.runes.sec};
+}
+
+// ═══════════════════════════════════════
+// API Connection
+// ═══════════════════════════════════════
+async function connectAPI() {
+  state.apiLoading = true; render();
+  try {
+    const res = await fetch(API_URL + "/api/stats");
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const data = await res.json();
+    state.apiData = data;
+    state.apiConnected = true;
+    state.apiLoading = false;
+    console.log("Connected to Riot API! Champions:", Object.keys(data.champions).length);
+
+    // Merge any API-discovered champions not in our hardcoded list
+    if (data.champions) {
+      for (const name in data.champions) {
+        if (!CHAMPIONS.find(c => c.name === name)) {
+          const d = data.champions[name];
+          const roleMap = { TOP: "top", JUNGLE: "jungle", MIDDLE: "mid", BOTTOM: "adc", UTILITY: "support" };
+          CHAMPIONS.push({
+            name, roles: [roleMap[d.role] || "mid"], dmgType: "mixed",
+            tags: ["unknown"], blindScore: 5, sprite: "❓", buildClass: "ad-bruiser"
+          });
+        }
+      }
+    }
+  } catch (e) {
+    console.log("API not available, using hardcoded data:", e.message);
+    state.apiConnected = false;
+    state.apiLoading = false;
+  }
+  render();
+}
+
+// ═══════════════════════════════════════
+// RENDERER
+// ═══════════════════════════════════════
+const ROLES = ["top","jungle","mid","adc","support"];
+const $ = id => document.getElementById(id);
+
+function render() {
+  const app = document.getElementById("app");
+  app.innerHTML = renderHeader() + '<div class="container">' + (state.phase === "draft" ? renderDraft() : renderBuild()) + '<div style="height:40px"></div></div>';
+  bindEvents();
+}
+
+function renderHeader() {
+  const statusClass = state.apiLoading ? "loading" : state.apiConnected ? "connected" : "offline";
+  const statusText = state.apiLoading ? "Connecting to Riot API..." : state.apiConnected ? "LIVE DATA (Diamond+) — " + Object.keys(state.apiData.champions).length + " champions • " + (state.apiData.totalMatches || "?") + " matches" : "Offline — using hardcoded data";
+  return `<div class="header">
+    <h1>⚔ Draft Assistant</h1>
+    <p class="sub">CHAMPION SELECT ADVISOR</p>
+    <div style="margin-top:8px"><span class="status-bar ${statusClass}"><span class="status-dot"></span>${statusText}</span></div>
+    <div class="tabs">
+      <button class="${state.phase==='draft'?'active':''}" onclick="setPhase('draft')">⚔ Draft</button>
+      <button class="${state.phase==='build'?'active':''}" onclick="setPhase('build')">🛠 Build & Runes</button>
+    </div>
+  </div>`;
+}
+
+function renderDraft() {
+  let h = '';
+  // Role
+  h += sec("YOUR ROLE","var(--gold)") + '<div class="role-bar">' + ROLES.map(r => `<button class="role-btn ${state.myRole===r?'active':''}" onclick="setRole('${r}')">${r==='adc'?'ADC':r}</button>`).join('') + '</div>';
+  // Pick order
+  h += sec("PICK ORDER","var(--gold)") + '<div class="pick-order">' +
+    '<button class="pick-btn ' + (!state.hasCounterpick ? 'active-blind' : '') + '" onclick="setPick(false)">🙈 Blind Pick</button>' +
+    '<button class="pick-btn ' + (state.hasCounterpick ? 'active-counter' : '') + '" onclick="setPick(true)">🎯 Counter Pick</button>' +
+    '</div>';
+  // Ally team
+  h += sec("YOUR TEAM ("+state.allyTeam.length+"/4)","var(--blue-accent)") + '<div class="chip-wrap">' + state.allyTeam.map(n => chip(n,"var(--blue-accent)","removeAlly")).join('') + '</div>';
+  if (state.allyTeam.length < 4) h += searchBox("ally-search","Add ally champion...","addAlly");
+  // Enemy team with lane assignment
+  h += sec("ENEMY TEAM ("+state.enemyTeam.length+"/5)","var(--red)");
+  h += '<div style="display:flex;flex-direction:column;gap:8px">';
+  for (const n of state.enemyTeam) {
+    const ch = getChampByName(n);
+    const assigned = state.enemyRoles[n] || "";
+    h += `<div class="enemy-card"><div class="enemy-card-header"><span style="font-size:16px">${ch?.sprite||'?'}</span><span style="font-size:13px;font-weight:600;color:var(--red)">${n}</span>`;
+    const wr = getChampWinrate(n);
+    if (wr) h += `<span class="wr-badge" style="background:${wr>51?'#27AE6022':'#E8405722'};color:${wr>51?'var(--green)':'var(--red)'}">${wr}% WR</span>`;
+    h += `<button onclick="removeEnemy('${n}')" style="margin-left:auto;background:none;border:none;color:var(--red);cursor:pointer;font-size:14px;opacity:0.7">×</button></div>`;
+    h += '<div class="enemy-role-bar">' + ROLES.map(r => `<button class="enemy-role-btn ${assigned===r?'assigned':''}" onclick="assignRole('${n}','${r}')">${r==='adc'?'ADC':r}</button>`).join('') + '</div></div>';
+  }
+  h += '</div>';
+  if (state.enemyTeam.length < 5) h += searchBox("enemy-search","Add enemy champion...","addEnemy");
+  // Champ pool
+  h += sec("YOUR CHAMP POOL ("+state.champPool.length+")","var(--gold)") + '<div class="chip-wrap">' + state.champPool.map(n => chip(n,"var(--gold)","removePool")).join('') + '</div>';
+  h += searchBox("pool-search","Add "+state.myRole+" champion to pool...","addPool",state.myRole);
+  // Analyze
+  h += `<button class="analyze-btn ${state.champPool.length?'ready':'disabled'}" onclick="analyze()" ${state.champPool.length?'':'disabled'}>⚔ Analyze & Recommend</button>`;
+  // Results
+  if (state.showResults) {
+    const mc = analyzeTeamComp(state.allyTeam), ec = analyzeTeamComp(state.enemyTeam);
+    h += '<div style="margin-top:20px"><div class="comp-grid">' + compCard("Your Team",mc,"var(--blue-accent)") + compCard("Enemy Team",ec,"var(--red)") + '</div></div>';
+    if (state.recommendations.length) {
+      h += sec("RECOMMENDATIONS","var(--gold)") + '<div style="display:flex;flex-direction:column;gap:10px">';
+      state.recommendations.forEach((rec,i) => {
+        const ch = getChampByName(rec.name); const top = i===0;
+        const wr = getChampWinrate(rec.name);
+        h += `<div class="rec-card" style="background:${top?'#C8AA6E15':BLUE_MID+'cc'};border:1px solid ${top?'#C8AA6E':'#785A28'}44" onclick="goToBuild('${rec.name}')">`;
+        if(top) h += '<div class="best-badge">BEST PICK</div>';
+        h += `<div class="rec-row"><span class="rec-emoji">${ch?.sprite||'?'}</span><div style="flex:1"><div class="rec-name" style="color:${top?'var(--gold)':'var(--blue-light)'}">${rec.name}</div><div class="rec-sub">${ch?.dmgType.toUpperCase()} • ${ch?.roles.join('/')}${wr?' • '+wr+'% WR':''}</div></div><div style="text-align:right"><div class="rec-score" style="color:${rec.score>20?'var(--blue-accent)':rec.score>0?'var(--gold)':'var(--red)'}">${rec.score>0?'+':''}${rec.score}</div><div class="rec-hint">TAP FOR BUILD →</div></div></div>`;
+        if(rec.reasons.length) {
+          h += '<div class="rec-tags">';
+          rec.reasons.forEach(r => {
+            const col = r.includes('Counter')?'var(--blue-accent)':r.includes('Loses')||r.includes('Too much')?'var(--red)':'var(--gold)';
+            h += `<span class="rec-tag" style="background:${col}22;color:${col}">${r}</span>`;
+          });
+          h += '</div>';
+        }
+        h += '</div>';
+      });
+      h += '</div>';
+    }
+  }
+  return h;
+}
+
+function renderBuild() {
+  let h = '';
+  h += sec("YOUR CHAMPION","var(--blue-accent)");
+  if (state.buildChamp) {
+    h += '<div>' + chip(state.buildChamp,"var(--blue-accent)","clearBuildChamp") + '</div>';
+  } else {
+    h += searchBox("build-champ-search","Select your champion...","setBuildChamp");
+  }
+  h += sec("ENEMY TEAM ("+state.buildEnemies.length+"/5)","var(--red)");
+  h += '<div class="chip-wrap">' + state.buildEnemies.map(n => chip(n,"var(--red)","removeBuildEnemy")).join('') + '</div>';
+  if (state.buildEnemies.length < 5) h += searchBox("build-enemy-search","Add enemy champion...","addBuildEnemy");
+  const ready = state.buildChamp && state.buildEnemies.length;
+  h += '<button class="analyze-btn ' + (ready?'ready':'disabled') + '" onclick="runBuild()" ' + (ready?'':'disabled') + '>🛠 Get Build & Runes</button>';
+  if (state.buildResult) {
+    const b = state.buildResult;
+    const isApi = b.source === "api";
+
+    // Data source badge
+    h += '<div style="margin-top:16px;text-align:center">';
+    if (isApi) {
+      h += '<span class="status-bar connected" style="display:inline-flex"><span class="status-dot"></span>LIVE DATA — ' + b.totalGames + ' Diamond+ games analyzed</span>';
+    } else {
+      h += '<span class="status-bar offline" style="display:inline-flex"><span class="status-dot"></span>Using hardcoded templates (API offline)</span>';
+    }
+    h += '</div>';
+
+    // Threat analysis
+    h += '<div style="margin-top:12px"><div class="threat-box" style="background:var(--red)11;border:1px solid var(--red)33"><div style="font-size:11px;font-weight:700;color:var(--red);letter-spacing:1px;margin-bottom:6px">ENEMY THREAT ANALYSIS</div><div style="display:flex;flex-wrap:wrap;gap:6px">';
+    if(b.analysis.heavyAD) h+= tag("⚔️ Heavy AD","#FF6B35");
+    if(b.analysis.heavyAP) h+= tag("🔮 Heavy AP","#9B59B6");
+    if(b.analysis.heavyTank) h+= tag("🛡️ Tank Heavy","#7F8C8D");
+    if(b.analysis.healHeavy) h+= tag("💚 Heal Heavy","#27AE60");
+    if(!b.analysis.heavyAD&&!b.analysis.heavyAP&&!b.analysis.heavyTank&&!b.analysis.healHeavy) h+= tag("⚖️ Balanced","var(--gold)");
+    h += '</div></div>';
+
+    // ─── Runes ───
+    h += sec("RUNES","#9B59B6");
+    h += '<div class="rune-box" style="background:#9B59B611;border:1px solid #9B59B633">';
+    if (b.keystones && b.keystones.length) {
+      b.keystones.forEach((k, i) => {
+        const isMain = i === 0;
+        h += '<div style="display:flex;align-items:center;gap:10px;' + (i > 0 ? 'margin-top:8px;padding-top:8px;border-top:1px solid #9B59B622;' : '') + '">';
+        h += '<div style="flex:1"><div style="font-size:' + (isMain ? '16' : '13') + 'px;font-weight:700;color:' + (isMain ? '#D4A5FF' : '#CDFAFA88') + '">' + k.name + '</div>';
+        if (k.rate) h += '<div style="font-size:11px;color:#CDFAFA66">' + k.rate + '% pick rate' + (k.count ? ' (' + k.count + ' games)' : '') + '</div>';
+        h += '</div>';
+        if (isMain && k.rate) h += '<div style="font-size:20px;font-weight:800;color:#D4A5FF">' + k.rate + '%</div>';
+        h += '</div>';
+      });
+    } else if (b.rune) {
+      h += '<div style="display:flex;align-items:center;gap:10px"><span class="rune-icon">' + (b.rune.icon||'') + '</span><div><div class="rune-name" style="color:#D4A5FF">' + b.rune.name + '</div><div style="font-size:11px;color:var(--blue-light);opacity:0.55">' + (b.rune.tree||'') + ' • ' + (b.rune.desc||'') + '</div></div></div>';
+    }
+    // Secondary tree
+    if (b.secTrees && b.secTrees.length) {
+      h += '<div style="border-top:1px solid #9B59B622;padding-top:8px;margin-top:8px">';
+      h += '<div style="font-size:11px;color:var(--gold);font-weight:600;margin-bottom:4px">Secondary: ' + b.secTrees.map(t => t.name + (t.rate ? ' (' + t.rate + '%)' : '')).join(' / ') + '</div>';
+      if (b.secRunes && b.secRunes.length) {
+        h += '<div style="display:flex;gap:6px;flex-wrap:wrap">';
+        b.secRunes.forEach(r => {
+          h += '<span style="font-size:11px;padding:3px 8px;background:#C8AA6E15;color:var(--gold);border-radius:4px;font-weight:600">' + r.name + (r.rate ? ' ' + r.rate + '%' : '') + '</span>';
+        });
+        h += '</div>';
+      }
+      h += '</div>';
+    }
+    h += '</div>';
+
+    // ─── Boots ───
+    h += sec("BOOTS","var(--blue-accent)");
+    if (b.boots && b.boots.length) {
+      b.boots.forEach((boot, i) => {
+        h += '<div class="item-row" style="background:var(--blue-accent)08;border:1px solid var(--blue-accent)22;margin-bottom:4px"><div style="font-size:14px;font-weight:600;color:var(--blue-accent);flex:1">👟 ' + boot.name + '</div>';
+        if (boot.rate) h += '<span style="font-size:11px;color:var(--blue-accent);opacity:0.7">' + boot.rate + '%</span>';
+        h += '</div>';
+      });
+    }
+
+    // ─── Items ───
+    if (isApi && b.itemLabel) {
+      h += sec("ITEMS — " + b.itemLabel.toUpperCase(),"var(--gold)");
+    } else {
+      h += sec("ITEM BUILD","var(--gold)");
+    }
+    h += '<div style="display:flex;flex-direction:column;gap:6px">';
+    if (b.items && b.items.length) {
+      b.items.forEach((item, i) => {
+        const isCore = i < 3;
+        h += '<div class="item-row" style="background:' + (isCore ? 'var(--gold)0A' : 'var(--blue-mid)') + ';border:1px solid ' + (isCore ? 'var(--gold)' : 'var(--gold-dark)') + '33">';
+        h += '<div class="item-num" style="background:var(--gold)22;color:var(--gold)">' + (i+1) + '</div>';
+        h += '<div style="font-size:14px;font-weight:600;color:' + (isCore ? 'var(--gold)' : 'var(--blue-light)') + '">' + item.name + '</div>';
+        if (item.rate) {
+          h += '<div style="margin-left:auto;display:flex;align-items:center;gap:6px">';
+          h += '<div style="width:50px;height:4px;background:#333;border-radius:2px;overflow:hidden"><div style="width:' + Math.min(item.rate, 100) + '%;height:100%;background:var(--gold);border-radius:2px"></div></div>';
+          h += '<span style="font-size:11px;color:var(--gold);opacity:0.8;min-width:30px;text-align:right">' + item.rate + '%</span>';
+          h += '</div>';
+        } else {
+          h += '<span class="item-label" style="color:' + (isCore ? 'var(--gold)88' : 'var(--blue-accent)88') + '">' + (isCore ? 'CORE' : 'SITUATIONAL') + '</span>';
+        }
+        h += '</div>';
+      });
+    }
+    h += '</div>';
+
+    // Adaptations (hardcoded only)
+    if(b.adapt && b.adapt.length) {
+      h += sec("WHY THESE ITEMS","#F39C12");
+      h += '<div class="adapt-box" style="background:#F39C1211;border:1px solid #F39C1233">';
+      b.adapt.forEach(a => h += '<div class="adapt-line" style="color:#F39C12"><span style="font-size:8px">▸</span> ' + a + '</div>');
+      h += '</div>';
+    }
+    h += '</div>';
+  }
+  return h;
+}
+
+// Helpers
+const BLUE_MID = "#0A1428";
+function sec(title, color) { return `<div class="section"><div class="section-title" style="color:${color}"><span>${title}</span><div class="line" style="background:${color}33"></div></div>`; }
+function chip(name, color, removeFn) { const c=getChampByName(name); return `<div class="chip" style="background:${color}22;border:1px solid ${color}55;color:${color}"><span>${c?.sprite||'?'}</span><span>${name}</span><button class="remove" style="color:${color}" onclick="${removeFn}('${name}')">×</button></div>`; }
+function tag(text, color) { return `<span class="tag" style="background:${color}22;color:${color}">${text}</span>`; }
+function compCard(title, comp, color) {
+  let h = `<div class="comp-card" style="background:${color}08;border:1px solid ${color}33"><div class="comp-card-title" style="color:${color}">${title.toUpperCase()}</div><div style="font-size:12px;line-height:1.6">AD: ${comp.adCount} / AP: ${comp.apCount} / Mix: ${comp.mixedCount}<div style="font-size:10px;opacity:0.55;margin-top:4px">${comp.hasEngage?'✅':'❌'} Engage ${comp.hasTank?'✅':'❌'} Tank ${comp.hasPeel?'✅':'❌'} Peel</div>`;
+  if(comp.themes.length) { h += '<div style="margin-top:4px;display:flex;flex-wrap:wrap;gap:3px">'; comp.themes.forEach(t => h += `<span style="font-size:9px;padding:1px 5px;background:${color}22;color:${color};border-radius:3px;font-weight:600">${t}</span>`); h += '</div>'; }
+  return h + '</div></div>';
+}
+function searchBox(id, placeholder, fn, filterRole) {
+  return `<div class="search-wrap" style="margin-top:6px"><input class="search-input" id="${id}" placeholder="${placeholder}" autocomplete="off" data-fn="${fn}" data-role="${filterRole||''}" oninput="onSearch(this)" onfocus="onSearch(this)"><div class="search-dropdown" id="${id}-dd" style="display:none"></div></div>`;
+}
+
+// ═══════════════════════════════════════
+// EVENT HANDLERS
+// ═══════════════════════════════════════
+window.setPhase = p => { state.phase = p; render(); };
+window.setRole = r => { state.myRole = r; state.showResults = false; render(); };
+window.setPick = v => { state.hasCounterpick = v; state.showResults = false; render(); };
+window.addAlly = n => { state.allyTeam.push(n); state.showResults=false; render(); };
+window.removeAlly = n => { state.allyTeam = state.allyTeam.filter(x=>x!==n); state.showResults=false; render(); };
+window.addEnemy = n => { state.enemyTeam.push(n); state.showResults=false; render(); };
+window.removeEnemy = n => { state.enemyTeam = state.enemyTeam.filter(x=>x!==n); delete state.enemyRoles[n]; state.showResults=false; render(); };
+window.assignRole = (n,r) => { state.enemyRoles[n] = state.enemyRoles[n]===r ? "" : r; state.showResults=false; render(); };
+window.addPool = n => { state.champPool.push(n); state.showResults=false; render(); };
+window.removePool = n => { state.champPool = state.champPool.filter(x=>x!==n); state.showResults=false; render(); };
+window.analyze = () => { state.recommendations = recommendPick(); state.showResults = true; render(); };
+window.goToBuild = n => { state.buildChamp = n; state.buildEnemies = [...state.enemyTeam]; state.buildResult = null; state.phase = "build"; render(); };
+window.setBuildChamp = n => { state.buildChamp = n; state.buildResult=null; render(); };
+window.clearBuildChamp = () => { state.buildChamp=""; state.buildResult=null; render(); };
+window.addBuildEnemy = n => { state.buildEnemies.push(n); state.buildResult=null; render(); };
+window.removeBuildEnemy = n => { state.buildEnemies = state.buildEnemies.filter(x=>x!==n); state.buildResult=null; render(); };
+window.runBuild = () => { state.buildResult = getBuild(state.buildChamp, state.buildEnemies); render(); };
+
+window.onSearch = function(input) {
+  const q = input.value.toLowerCase().trim();
+  const dd = document.getElementById(input.id + "-dd");
+  const fn = input.dataset.fn;
+  const filterRole = input.dataset.role;
+  if (!q) { dd.style.display = "none"; return; }
+  const exclude = new Set([...state.allyTeam, ...state.enemyTeam, ...state.champPool, ...state.buildEnemies, state.buildChamp].filter(Boolean));
+  let results = CHAMPIONS.filter(c => c.name.toLowerCase().includes(q)).filter(c => !exclude.has(c.name));
+  if (filterRole) results = results.filter(c => c.roles.includes(filterRole));
+  results = results.slice(0, 8);
+  if (!results.length) { dd.style.display = "none"; return; }
+  dd.style.display = "block";
+  dd.innerHTML = results.map(c => {
+    const wr = getChampWinrate(c.name);
+    return `<div class="search-item" onclick="${fn}('${c.name}')"><span>${c.sprite}</span><span style="font-weight:600">${c.name}</span><span class="meta">${c.roles.join('/')} ${c.dmgType.toUpperCase()}${wr?' • '+wr+'%':''}</span></div>`;
+  }).join('');
+};
+
+function bindEvents() {
+  document.addEventListener("click", e => {
+    document.querySelectorAll(".search-dropdown").forEach(dd => {
+      if (!dd.parentElement.contains(e.target)) dd.style.display = "none";
+    });
+  });
+}
+
+// ═══════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════
+render();
+connectAPI();
+</script>
+</body>
+</html>
